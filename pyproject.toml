@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "hotspot-cambio-climatico"
+version = "0.1.0"
+description = ""
+authors = ["Felipe Sodré <felipe.b4rros@gmail.com>"]
+readme = "README.md"
+packages = [{include = "hotspot_cambio_climatico"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+rasterio = "^1.4.4"
+geopandas = "^1.1.1"
+rasterstats = "^0.20.0"
+matplotlib = "^3.10.8"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
