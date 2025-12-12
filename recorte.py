@@ -4,18 +4,22 @@ from rasterio.mask import mask
 import os
 
 # archivos a recortar
-RASTER_DIR = "./RASTER/"
+RASTER_DIR = "./RASTER/originales/"
 # Ruta del archivo SHP que vamos a usar de mascara para el recorte
 SHAPE_PATH = "./VECTOR/Area_Estudio/Area_Estudio.shp"
 # Lista de rasters a procesar
 RASTERS_A_RECORTAR = [
-    "wc2.1_30s_bio_1.tif",
-    "wc2.1_30s_bio_5.tif",
-    "wc2.1_30s_bio_14.tif",
-    "wc2.1_30s_bio_15.tif",
+    "wc2.1_30s_bio/wc2.1_30s_bio_1.tif",
+    "wc2.1_30s_bio/wc2.1_30s_bio_5.tif",
+    "wc2.1_30s_bio/wc2.1_30s_bio_14.tif",
+    "wc2.1_30s_bio/wc2.1_30s_bio_15.tif",
+    "bio1_fut.tif",
+    "bio5_fut.tif",
+    "bio14_fut.tif",
+    "bio15_fut.tif",
 ]
 # Carpeta resultados recortados
-OUTPUT_DIR = "./RASTER_Re/"
+OUTPUT_DIR = "./RASTER/modificados/"
 
 if not os.path.exists(SHAPE_PATH):
     print(f"Dato de mascara no encontrado: {SHAPE_PATH}")
@@ -40,7 +44,7 @@ for raster_name in RASTERS_A_RECORTAR:
     if not os.path.exists(input_path):
         print("ERROR: raster no encontrado")
         continue  # sigue para el proximo
-    output_path = os.path.join(OUTPUT_DIR, f"recorte_{raster_name}")
+    output_path = os.path.join(OUTPUT_DIR, f"recorte_{raster_name.split('/')[-1]}")
 
     try:
         print(f"Procesando: {raster_name}...")
