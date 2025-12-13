@@ -12,6 +12,7 @@ rasterio = "^1.4.4"
 geopandas = "^1.1.1"
 rasterstats = "^0.20.0"
 matplotlib = "^3.10.8"
+pathlib = "^1.0.1"
 
 
 [build-system]
