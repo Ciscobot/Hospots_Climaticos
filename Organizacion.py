@@ -5,7 +5,7 @@ from pathlib import Path
 future_raster_path = Path(
     "./RASTER/originales/wc2.1_30s_bioc_IPSL-CM6A-LR_ssp585_2021-2040.tif"
 )
-bandas = [1, 4, 14, 15]
+bandas = [1, 5, 14, 15]
 
 for banda in bandas:
     salida = Path(f"./RASTER/originales/bio_{banda}_fut.tif")
