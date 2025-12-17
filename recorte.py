@@ -1,7 +1,8 @@
-import rasterio
-import fiona
-from rasterio.mask import mask
 from pathlib import Path
+
+import fiona
+import rasterio
+from rasterio.mask import mask
 
 # archivos a recortar
 RASTER_DIR = Path("./RASTER/originales/")

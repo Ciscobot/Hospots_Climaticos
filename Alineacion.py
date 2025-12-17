@@ -1,8 +1,9 @@
-import rasterio
-from rasterio.warp import reproject, Resampling
-from rasterio.transform import from_bounds
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+import rasterio
+from rasterio.transform import from_bounds
+from rasterio.warp import reproject, Resampling
 
 REQUIERE_REPROJECT = {"CRS", "RES", "ORIGIN", "EXTENT", "DIMENSIONS"}
 NODATA = -9999
@@ -109,4 +110,4 @@ for raster_in, problems in results.items():
     with rasterio.open(salida_raster, "w", **profile) as dst:
         dst.write(dst_data, 1)
 
-    print(f"✔ Guardado: {salida_raster.name}")
+    print(f"Guardado: {salida_raster.name}")

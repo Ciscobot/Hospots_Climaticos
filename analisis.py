@@ -1,9 +1,10 @@
-import rasterio
-import numpy as np
-import geopandas as gpd
 from pathlib import Path
-from rasterstats import zonal_stats
+
+import geopandas as gpd
+import numpy as np
+import rasterio
 from rasterio.features import rasterize
+from rasterstats import zonal_stats
 
 # ===================================================
 # CONFIGURACIÓN GENERAL
