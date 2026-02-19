@@ -1,22 +1,27 @@
-import matplotlib.pyplot as plt
 import geopandas as gpd
 import xarray as xr
 import rioxarray as rx
 import numpy as np
 from matplotlib.ticker import MultipleLocator
-
 import pandas as pd
 from matplotlib.gridspec import GridSpec
 from math import pi
 import matplotlib.pyplot as plt
+from pathlib import Path
 
+# Funcion para solicitar al usuario el ingreso de rutas
+def pedir_ruta(mensaje, extension=None):
+    ruta = Path(input(mensaje).strip())
+    if not ruta.exists():
+        raise FileNotFoundError(f"No existe: {ruta}")
+    if extension and ruta.suffix.lower() != extension:
+        raise ValueError(f"El archivo debe ser {extension}")
+    return ruta
 
-
-
-# 1. CONFIGURACION DE RUTAS
-ruta_raster = "/home/victor/Documentos/Trabajos_Investigacion/Proyección_Hotspots/RESULTADOS/INDICE_IMPACTO_AGREGADO.tif"
-
-ruta_vector = "/home/victor/Documentos/Trabajos_Investigacion/Proyección_Hotspots/VECTOR/Area_Estudio/Area_Estudio.shp"
+# 1. CONFIGURACION DE RUTAS 
+ruta_raster = pedir_ruta("Ingrese la ruta del raster (.tif): ", ".tif")
+ruta_vector = pedir_ruta("Ingrese la ruta del shapefile (.shp): ", ".shp")
+ruta_excel = pedir_ruta("Ingrese la ruta del Excel (.xlsx): ", ".xlsx")
 
 # 2. CARGA Y PREPARACION DEL RASTER
 try:
@@ -34,10 +39,23 @@ try:
 except Exception as e:
     print(f"Error cargando raster: {e}")
     exit()
-
+    
 # 3. CARGA Y RECORTE DEL SHP
 try:
-    provincias = gpd.read_file(ruta_vector).to_crs(raster.rio.crs)
+    provincias = gpd.read_file(ruta_vector)
+    # Verificar que el shapefile tenga CRS
+    if provincias.crs is None:
+        raise ValueError("El shapefile no tiene CRS definido.")
+    # Verificar que el raster tenga CRS
+    if raster.rio.crs is None:
+        raise ValueError("El raster no tiene CRS definido.")
+    # Reproyectar solo si son distintos
+    if provincias.crs != raster.rio.crs:
+        print("Reproyectando SHP al CRS del raster")
+        provincias = provincias.to_crs(raster.rio.crs)
+    else:
+        print("El CRS ya coincide. No se reproyecta.")
+
     # RECORTE:
     # .cx[longitud, latitud] me permite recortar el shp 
     # Cortamos Antartida de nuestro Vector
@@ -99,8 +117,6 @@ fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1) # valores se expre
 plt.show()
 
 # 6. RADARES Y PLOTS
-ruta_excel = "/home/victor/Documentos/Trabajos_Investigacion/Proyección_Hotspots/RESULTADOS/Reporte_Hotspots_Zonal_MultiPais.xlsx"
-
 df = pd.read_excel(ruta_excel, sheet_name="Ranking Global de Riesgo")
 
 categorias_z = ['z_bio1', 'z_bio5', 'z_bio14', 'z_bio15']
@@ -213,4 +229,5 @@ radares_fig(
     titulo="Sudamérica – Top 5 Mayor / Menor Riesgo Climático")
 
 plt.tight_layout()
+plt.savefig()
 plt.show()
