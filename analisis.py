@@ -249,8 +249,55 @@ with rasterio.open(z1_path) as src1, rasterio.open(z5_path) as src5, rasterio.op
 print("Índices compuestos generados correctamente.")
 
 
-# GENERAR EXCEL DE RESULTADOS
-# CREAR CAMPO UNIFICADO DE NOMBRE
+# ===================================================
+# GENERAR EXCEL FINAL (MIX: DELTA + Z + ÍNDICES)
+# ===================================================
+
+print("\nGenerando Excel final coherente con raster...")
+
+# Asegurar CRS coherente
+with rasterio.open(IC_PATH) as src_ref:
+    if regiones.crs != src_ref.crs:
+        regiones = regiones.to_crs(src_ref.crs)
+
+# ---------------------------------------------------
+# FUNCIÓN AUXILIAR
+# ---------------------------------------------------
+
+def extraer_media(raster_path, nombre_columna):
+
+    stats = zonal_stats(
+        regiones,
+        raster_path,
+        stats=["mean"],
+        nodata=NODATA_VAL_OUT,
+        all_touched=True,
+    )
+
+    regiones[nombre_columna] = [s["mean"] for s in stats]
+
+
+# ---------------------------------------------------
+# EXTRAER Z-SCORES (DESDE RASTER)
+# ---------------------------------------------------
+
+extraer_media(BIOS[1]["z_path"], "z_bio_1")
+extraer_media(BIOS[5]["z_path"], "z_bio_5")
+extraer_media(BIOS[14]["z_path"], "z_bio_14")
+extraer_media(BIOS[15]["z_path"], "z_bio_15")
+
+# ---------------------------------------------------
+# EXTRAER ÍNDICES COMPUESTOS (DESDE RASTER)
+# ---------------------------------------------------
+
+extraer_media(IST_PATH, "I_estress_termico")
+extraer_media(ISH_PATH, "I_estress_hidrico")
+extraer_media(IC_PATH, "Indice_consolidado")
+
+# ---------------------------------------------------
+# CREAR NOMBRE UNIFICADO
+# ---------------------------------------------------
+
 def obtener_nombre(row):
     for campo in ["nombre", "dpto_desc", "REGION"]:
         if campo in regiones.columns and pd.notnull(row.get(campo)):
@@ -260,17 +307,10 @@ def obtener_nombre(row):
 
 regiones["NOMBRE_ZONA"] = regiones.apply(obtener_nombre, axis=1)
 
-# INDICES COMPUESTOS
+# ---------------------------------------------------
+# RANKING
+# ---------------------------------------------------
 
-regiones["I_estress_termico"] = regiones["mean_bio_1"] + regiones["mean_bio_5"]
-
-regiones["I_estress_hidrico"] = regiones["mean_bio_14"] + regiones["mean_bio_15"]
-
-regiones["Indice_consolidado"] = (
-    regiones["I_estress_termico"] + regiones["I_estress_hidrico"]
-)
-
-# ORDENAR Y RANKING
 ranking_df = (
     regiones.sort_values(by="Indice_consolidado", ascending=False)
     .dropna(subset=["Indice_consolidado"])
@@ -279,13 +319,20 @@ ranking_df = (
 
 ranking_df["RANK"] = ranking_df.index + 1
 
-# EXPORTAR
+# ---------------------------------------------------
+# EXPORTAR (INCLUYE MEAN Y STD ORIGINALES)
+# ---------------------------------------------------
+
 cols_excel = [
     "RANK",
     "NOMBRE_ZONA",
     "I_estress_termico",
     "I_estress_hidrico",
     "Indice_consolidado",
+    "z_bio_1",
+    "z_bio_5",
+    "z_bio_14",
+    "z_bio_15",
     "mean_bio_1",
     "mean_bio_5",
     "mean_bio_14",
@@ -298,10 +345,11 @@ cols_excel = [
 
 with pd.ExcelWriter(OUTPUT_EXCEL, engine="xlsxwriter") as writer:
     ranking_df.to_excel(
-        writer, sheet_name="Ranking Global de Riesgo", index=False, columns=cols_excel
+        writer,
+        sheet_name="Ranking Global de Riesgo",
+        index=False,
+        columns=cols_excel,
     )
 
-
 print(f"Excel generado correctamente en:\n{OUTPUT_EXCEL}")
-
 print("\nDelta, Normalización Z-score y XLSX creados")
