@@ -7,13 +7,14 @@ readme = "README.md"
 packages = [{include = "hotspot_cambio_climatico"}]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 rasterio = "^1.4.4"
 geopandas = "^1.1.1"
 rasterstats = "^0.20.0"
 matplotlib = "^3.10.8"
 pathlib = "^1.0.1"
 xlsxwriter = "^3.2.9"
+rioxarray = "^0.21.0"
 
 
 [build-system]
