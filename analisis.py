@@ -2,10 +2,10 @@ from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import rasterio
 from rasterio.features import rasterize
 from rasterstats import zonal_stats
-import pandas as pd
 
 # ===================================================
 # CONFIGURACIÓN GENERAL
@@ -14,6 +14,10 @@ import pandas as pd
 RASTER_PATH = Path("./RASTER/modificados/")
 VECTOR_PATH = Path("./VECTOR/Area_Estudio/Area_Estudio.shp")
 OUTPUT_PATH = Path("./RASTER/derivados/")
+OUTPUT_EXCEL = OUTPUT_PATH.joinpath("tablas")
+if not OUTPUT_EXCEL.exists():
+    OUTPUT_EXCEL.mkdir(exist_ok=True)
+OUTPUT_EXCEL = OUTPUT_EXCEL.joinpath("Reporte_Hotspots_Area_Estudio.xlsx")
 NODATA_VAL_OUT = -9999
 
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
@@ -31,23 +35,23 @@ regiones = gpd.read_file(VECTOR_PATH)
 BIOS = {
     1: {
         "name": "BIO1",
-        "hist_path": RASTER_PATH / "recorte_wc2.1_30s_bio_1.tif",
-        "fut_path": RASTER_PATH / "recorte_bio_1_fut.tif",
+        "hist_path": RASTER_PATH.joinpath("recorte_wc2.1_30s_bio_1.tif"),
+        "fut_path": RASTER_PATH.joinpath("recorte_bio_1_fut.tif"),
     },
     5: {
         "name": "BIO5",
-        "hist_path": RASTER_PATH / "recorte_wc2.1_30s_bio_5.tif",
-        "fut_path": RASTER_PATH / "recorte_bio_5_fut.tif",
+        "hist_path": RASTER_PATH.joinpath("recorte_wc2.1_30s_bio_5.tif"),
+        "fut_path": RASTER_PATH.joinpath("recorte_bio_5_fut.tif"),
     },
     14: {
         "name": "BIO14",
-        "hist_path": RASTER_PATH / "recorte_wc2.1_30s_bio_14.tif",
-        "fut_path": RASTER_PATH / "recorte_bio_14_fut.tif",
+        "hist_path": RASTER_PATH.joinpath("recorte_wc2.1_30s_bio_14.tif"),
+        "fut_path": RASTER_PATH.joinpath("recorte_bio_14_fut.tif"),
     },
     15: {
         "name": "BIO15",
-        "hist_path": RASTER_PATH / "recorte_wc2.1_30s_bio_15.tif",
-        "fut_path": RASTER_PATH / "recorte_bio_15_fut.tif",
+        "hist_path": RASTER_PATH.joinpath("recorte_wc2.1_30s_bio_15.tif"),
+        "fut_path": RASTER_PATH.joinpath("recorte_bio_15_fut.tif"),
     },
 }
 
@@ -60,7 +64,7 @@ for bio_idx, cfg in BIOS.items():
     delta_path = OUTPUT_PATH.joinpath(f"DELTA_bio_{bio_idx}.tif")
 
     with rasterio.open(cfg["hist_path"]) as src_h, rasterio.open(
-        cfg["fut_path"]
+            cfg["fut_path"]
     ) as src_f:
         assert src_h.crs == src_f.crs
         assert src_h.transform == src_f.transform
@@ -92,7 +96,8 @@ for bio_idx, cfg in BIOS.items():
     # ===================================================
     # A.2 MEDIA Y DESVIACIÓN REGIONAL (VECTORIAL)
     # ===================================================
-
+    if regiones.crs != src_h.crs:
+        regiones = regiones.to_crs(src_h.crs)
     stats = zonal_stats(
         regiones,
         delta_path,
@@ -128,8 +133,8 @@ for bio_idx, cfg in BIOS.items():
             shapes = (
                 (geom, val)
                 for geom, val in zip(
-                    regiones.geometry, regiones[f"{stat}_bio_{bio_idx}"]
-                )
+                regiones.geometry, regiones[f"{stat}_bio_{bio_idx}"]
+            )
             )
 
             raster = rasterize(
@@ -154,7 +159,7 @@ for bio_idx, cfg in BIOS.items():
         z_path = OUTPUT_PATH.joinpath(f"Z_bio_{bio_idx}.tif")
 
     with rasterio.open(delta_path) as src_d, rasterio.open(
-        mean_path
+            mean_path
     ) as src_m, rasterio.open(std_path) as src_s:
         profile = src_d.profile.copy()
         profile.update(dtype="float32", nodata=NODATA_VAL_OUT)
@@ -167,7 +172,12 @@ for bio_idx, cfg in BIOS.items():
 
                 z = np.full(d.shape, NODATA_VAL_OUT, dtype="float32")
 
-                valid = s != NODATA_VAL_OUT  # & (s != 0) & (~np.isnan(s))
+                valid = (
+                        (s != NODATA_VAL_OUT)
+                        & (d != NODATA_VAL_OUT)
+                        & (m != NODATA_VAL_OUT)
+                        & (s != 0)
+                )
 
                 z[valid] = (d[valid] - m[valid]) / s[valid]
 
@@ -179,43 +189,32 @@ for bio_idx, cfg in BIOS.items():
 
 
 # GENERAR EXCEL DE RESULTADOS
-
-print("\nGenerando Excel...")
-
-OUTPUT_EXCEL = OUTPUT_PATH / "Reporte_Hotspots_Area_Estudio.xlsx"
-
 # CREAR CAMPO UNIFICADO DE NOMBRE
-
 def obtener_nombre(row):
     for campo in ["nombre", "dpto_desc", "REGION"]:
         if campo in regiones.columns and pd.notnull(row.get(campo)):
             return str(row[campo]).title()
     return "Sin Nombre"
 
+
 regiones["NOMBRE_ZONA"] = regiones.apply(obtener_nombre, axis=1)
 
 # INDICES COMPUESTOS
 
-regiones["I_estress_termico"] = (
-    regiones["mean_bio_1"] +
-    regiones["mean_bio_5"]
-)
+regiones["I_estress_termico"] = regiones["mean_bio_1"] + regiones["mean_bio_5"]
 
-regiones["I_estress_hidrico"] = (
-    regiones["mean_bio_14"] +
-    regiones["mean_bio_15"]
-)
+regiones["I_estress_hidrico"] = regiones["mean_bio_14"] + regiones["mean_bio_15"]
 
 regiones["Indice_consolidado"] = (
-    regiones["I_estress_termico"] +
-    regiones["I_estress_hidrico"]
+        regiones["I_estress_termico"] + regiones["I_estress_hidrico"]
 )
 
 # ORDENAR Y RANKING
-ranking_df = regiones.sort_values(
-    by="Indice_consolidado",
-    ascending=False
-).dropna(subset=["Indice_consolidado"]).reset_index(drop=True)
+ranking_df = (
+    regiones.sort_values(by="Indice_consolidado", ascending=False)
+    .dropna(subset=["Indice_consolidado"])
+    .reset_index(drop=True)
+)
 
 ranking_df["RANK"] = ranking_df.index + 1
 
@@ -226,25 +225,23 @@ cols_excel = [
     "I_estress_termico",
     "I_estress_hidrico",
     "Indice_consolidado",
-    "mean_bio_1", "mean_bio_5", "mean_bio_14", "mean_bio_15",
-    "std_bio_1", "std_bio_5", "std_bio_14", "std_bio_15"
+    "mean_bio_1",
+    "mean_bio_5",
+    "mean_bio_14",
+    "mean_bio_15",
+    "std_bio_1",
+    "std_bio_5",
+    "std_bio_14",
+    "std_bio_15",
 ]
 
 with pd.ExcelWriter(OUTPUT_EXCEL, engine="xlsxwriter") as writer:
-
     ranking_df.to_excel(
-        writer,
-        sheet_name="Ranking Global de Riesgo",
-        index=False,
-        columns=cols_excel
+        writer, sheet_name="Ranking Global de Riesgo", index=False, columns=cols_excel
     )
 
-    regiones.to_excel(
-        writer,
-        sheet_name="Datos_Completos",
-        index=False
-    )
+    regiones.to_excel(writer, sheet_name="Datos_Completos", index=False)
 
-print(f"Excel generado correctamente en:\n{OUTPUT_EXCEL}")    
+print(f"Excel generado correctamente en:\n{OUTPUT_EXCEL}")
 
 print("\nDelta, Normalización Z-score y XLSX creados")
