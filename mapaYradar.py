@@ -9,20 +9,21 @@ from math import pi
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Funcion para solicitar al usuario el ingreso de rutas
-def pedir_ruta(mensaje, extension=None):
-    ruta = Path(input(mensaje).strip())
+BASE_DIR = Path("./RASTER")
+
+ruta_raster = BASE_DIR / "derivados" / "zscore_regional_total.tif"
+ruta_vector = BASE_DIR / "Area_Estudio.shp"
+ruta_excel  = BASE_DIR / "derivados" / "Reporte_Hotspots_Area_Estudio.xlsx"
+
+print("Usando archivos predefinidos:")
+print(ruta_raster)
+print(ruta_vector)
+print(ruta_excel)
+
+for ruta in [ruta_raster, ruta_vector, ruta_excel]:
     if not ruta.exists():
         raise FileNotFoundError(f"No existe: {ruta}")
-    if extension and ruta.suffix.lower() != extension:
-        raise ValueError(f"El archivo debe ser {extension}")
-    return ruta
-
-# 1. CONFIGURACION DE RUTAS 
-ruta_raster = pedir_ruta("Ingrese la ruta del raster (.tif): ", ".tif")
-ruta_vector = pedir_ruta("Ingrese la ruta del shapefile (.shp): ", ".shp")
-ruta_excel = pedir_ruta("Ingrese la ruta del Excel (.xlsx): ", ".xlsx")
-
+        
 # 2. CARGA Y PREPARACION DEL RASTER
 try:
     # masked=True convierte el -9999.0 en NaN 
@@ -229,5 +230,9 @@ radares_fig(
     titulo="Sudamérica – Top 5 Mayor / Menor Riesgo Climático")
 
 plt.tight_layout()
-plt.savefig()
+
+salida_figura = BASE_DIR / "derivados" / "Mapa_Radares_Riesgo.png"
+plt.savefig( salida_figura, dpi=300, bbox_inches="tight")
+print(f"Figura guardada en:\n{salida_figura}")
+
 plt.show()
