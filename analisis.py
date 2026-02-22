@@ -14,7 +14,7 @@ from rasterstats import zonal_stats
 RASTER_PATH = Path("./RASTER/modificados/")
 VECTOR_PATH = Path("./VECTOR/Area_Estudio/Area_Estudio.shp")
 OUTPUT_PATH = Path("./RASTER/derivados/")
-OUTPUT_EXCEL = OUTPUT_PATH.joinpath("tablas")
+OUTPUT_EXCEL = Path("./TABLES/")
 if not OUTPUT_EXCEL.exists():
     OUTPUT_EXCEL.mkdir(exist_ok=True)
 OUTPUT_EXCEL = OUTPUT_EXCEL.joinpath("Reporte_Hotspots_Area_Estudio.xlsx")
