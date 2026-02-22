@@ -58,13 +58,13 @@ BIOS = {
 # ===================================================
 # A.1 DELTAS BIOCLIMÁTICOS (STREAMING + BIO14 INVERTIDO)
 # ===================================================
-
+# todo add confirmacion si resultados ya existen y deberían ser overritten
 for bio_idx, cfg in BIOS.items():
     # bio_idx, cfg = list(BIOS.items())[1]
     delta_path = OUTPUT_PATH.joinpath(f"DELTA_bio_{bio_idx}.tif")
 
     with rasterio.open(cfg["hist_path"]) as src_h, rasterio.open(
-            cfg["fut_path"]
+        cfg["fut_path"]
     ) as src_f:
         assert src_h.crs == src_f.crs
         assert src_h.transform == src_f.transform
@@ -110,9 +110,9 @@ for bio_idx, cfg in BIOS.items():
     regiones[f"std_bio_{bio_idx}"] = [s["std"] for s in stats]
 
     if (regiones[f"std_bio_{bio_idx}"] == 0).any():
-        regiones.loc[
-            regiones[f"std_bio_{bio_idx}"] == 0, [f"std_bio_{bio_idx}"]
-        ] = -9999
+        regiones.loc[regiones[f"std_bio_{bio_idx}"] == 0, [f"std_bio_{bio_idx}"]] = (
+            -9999
+        )
         # raise ValueError(f"STD = 0 detectado en BIO{bio_idx}")
         print(f"STD = 0 detectado en BIO{bio_idx}")
 
@@ -133,8 +133,8 @@ for bio_idx, cfg in BIOS.items():
             shapes = (
                 (geom, val)
                 for geom, val in zip(
-                regiones.geometry, regiones[f"{stat}_bio_{bio_idx}"]
-            )
+                    regiones.geometry, regiones[f"{stat}_bio_{bio_idx}"]
+                )
             )
 
             raster = rasterize(
@@ -159,7 +159,7 @@ for bio_idx, cfg in BIOS.items():
         z_path = OUTPUT_PATH.joinpath(f"Z_bio_{bio_idx}.tif")
 
     with rasterio.open(delta_path) as src_d, rasterio.open(
-            mean_path
+        mean_path
     ) as src_m, rasterio.open(std_path) as src_s:
         profile = src_d.profile.copy()
         profile.update(dtype="float32", nodata=NODATA_VAL_OUT)
@@ -173,10 +173,10 @@ for bio_idx, cfg in BIOS.items():
                 z = np.full(d.shape, NODATA_VAL_OUT, dtype="float32")
 
                 valid = (
-                        (s != NODATA_VAL_OUT)
-                        & (d != NODATA_VAL_OUT)
-                        & (m != NODATA_VAL_OUT)
-                        & (s != 0)
+                    (s != NODATA_VAL_OUT)
+                    & (d != NODATA_VAL_OUT)
+                    & (m != NODATA_VAL_OUT)
+                    & (s != 0)
                 )
 
                 z[valid] = (d[valid] - m[valid]) / s[valid]
@@ -186,6 +186,67 @@ for bio_idx, cfg in BIOS.items():
     BIOS.get(bio_idx).update({"z_path": z_path})
 
     print(f"Z-score bio_{bio_idx} generado")
+
+# ===================================================
+# A.5 ÍNDICES COMPUESTOS (STREAMING)
+# ===================================================
+
+print("\nGenerando índices compuestos (IST, ISH y Indice Consolidado)")
+
+z1_path = BIOS[1]["z_path"]
+z5_path = BIOS[5]["z_path"]
+z14_path = BIOS[14]["z_path"]
+z15_path = BIOS[15]["z_path"]
+
+IST_PATH = OUTPUT_PATH.joinpath("IST.tif")
+ISH_PATH = OUTPUT_PATH.joinpath("ISH.tif")
+IC_PATH = OUTPUT_PATH.joinpath("Indice_Consolidado.tif")
+
+with rasterio.open(z1_path) as src1, rasterio.open(z5_path) as src5, rasterio.open(
+    z14_path
+) as src14, rasterio.open(z15_path) as src15:
+
+    profile = src1.profile.copy()
+    profile.update(dtype="float32", nodata=NODATA_VAL_OUT)
+
+    with rasterio.open(IST_PATH, "w", **profile) as dst_ist, rasterio.open(
+        ISH_PATH, "w", **profile
+    ) as dst_ish, rasterio.open(IC_PATH, "w", **profile) as dst_ic:
+
+        for _, window in src1.block_windows(1):
+
+            z1 = src1.read(1, window=window)
+            z5 = src5.read(1, window=window)
+            z14 = src14.read(1, window=window)
+            z15 = src15.read(1, window=window)
+
+            # Inicializar
+            ist = np.full(z1.shape, NODATA_VAL_OUT, dtype="float32")
+            ish = np.full(z1.shape, NODATA_VAL_OUT, dtype="float32")
+            ic = np.full(z1.shape, NODATA_VAL_OUT, dtype="float32")
+
+            # Máscara válida (todos deben ser válidos)
+            valid = (
+                (z1 != NODATA_VAL_OUT)
+                & (z5 != NODATA_VAL_OUT)
+                & (z14 != NODATA_VAL_OUT)
+                & (z15 != NODATA_VAL_OUT)
+            )
+
+            # IST = Z1 + Z5
+            ist[valid] = z1[valid] + z5[valid]
+
+            # ISH = Z14 + Z15
+            ish[valid] = z14[valid] + z15[valid]
+
+            # Índice Consolidado
+            ic[valid] = ist[valid] + ish[valid]
+
+            dst_ist.write(ist, 1, window=window)
+            dst_ish.write(ish, 1, window=window)
+            dst_ic.write(ic, 1, window=window)
+
+print("Índices compuestos generados correctamente.")
 
 
 # GENERAR EXCEL DE RESULTADOS
@@ -206,7 +267,7 @@ regiones["I_estress_termico"] = regiones["mean_bio_1"] + regiones["mean_bio_5"]
 regiones["I_estress_hidrico"] = regiones["mean_bio_14"] + regiones["mean_bio_15"]
 
 regiones["Indice_consolidado"] = (
-        regiones["I_estress_termico"] + regiones["I_estress_hidrico"]
+    regiones["I_estress_termico"] + regiones["I_estress_hidrico"]
 )
 
 # ORDENAR Y RANKING
@@ -240,7 +301,6 @@ with pd.ExcelWriter(OUTPUT_EXCEL, engine="xlsxwriter") as writer:
         writer, sheet_name="Ranking Global de Riesgo", index=False, columns=cols_excel
     )
 
-    regiones.to_excel(writer, sheet_name="Datos_Completos", index=False)
 
 print(f"Excel generado correctamente en:\n{OUTPUT_EXCEL}")
 
