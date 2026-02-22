@@ -5,6 +5,7 @@ import numpy as np
 import rasterio
 from rasterio.features import rasterize
 from rasterstats import zonal_stats
+import pandas as pd
 
 # ===================================================
 # CONFIGURACIÓN GENERAL
@@ -176,4 +177,74 @@ for bio_idx, cfg in BIOS.items():
 
     print(f"Z-score bio_{bio_idx} generado")
 
-print("\nDelta, Normalización y Z-score creados")
+
+# GENERAR EXCEL DE RESULTADOS
+
+print("\nGenerando Excel...")
+
+OUTPUT_EXCEL = OUTPUT_PATH / "Reporte_Hotspots_Area_Estudio.xlsx"
+
+# CREAR CAMPO UNIFICADO DE NOMBRE
+
+def obtener_nombre(row):
+    for campo in ["nombre", "dpto_desc", "REGION"]:
+        if campo in regiones.columns and pd.notnull(row.get(campo)):
+            return str(row[campo]).title()
+    return "Sin Nombre"
+
+regiones["NOMBRE_ZONA"] = regiones.apply(obtener_nombre, axis=1)
+
+# INDICES COMPUESTOS
+
+regiones["I_estress_termico"] = (
+    regiones["mean_bio_1"] +
+    regiones["mean_bio_5"]
+)
+
+regiones["I_estress_hidrico"] = (
+    regiones["mean_bio_14"] +
+    regiones["mean_bio_15"]
+)
+
+regiones["Indice_consolidado"] = (
+    regiones["I_estress_termico"] +
+    regiones["I_estress_hidrico"]
+)
+
+# ORDENAR Y RANKING
+ranking_df = regiones.sort_values(
+    by="Indice_consolidado",
+    ascending=False
+).dropna(subset=["Indice_consolidado"]).reset_index(drop=True)
+
+ranking_df["RANK"] = ranking_df.index + 1
+
+# EXPORTAR
+cols_excel = [
+    "RANK",
+    "NOMBRE_ZONA",
+    "I_estress_termico",
+    "I_estress_hidrico",
+    "Indice_consolidado",
+    "mean_bio_1", "mean_bio_5", "mean_bio_14", "mean_bio_15",
+    "std_bio_1", "std_bio_5", "std_bio_14", "std_bio_15"
+]
+
+with pd.ExcelWriter(OUTPUT_EXCEL, engine="xlsxwriter") as writer:
+
+    ranking_df.to_excel(
+        writer,
+        sheet_name="Ranking Global de Riesgo",
+        index=False,
+        columns=cols_excel
+    )
+
+    regiones.to_excel(
+        writer,
+        sheet_name="Datos_Completos",
+        index=False
+    )
+
+print(f"Excel generado correctamente en:\n{OUTPUT_EXCEL}")    
+
+print("\nDelta, Normalización Z-score y XLSX creados")
