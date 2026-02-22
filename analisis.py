@@ -12,7 +12,7 @@ from rasterstats import zonal_stats
 # ===================================================
 
 RASTER_PATH = Path("./RASTER/modificados/")
-VECTOR_PATH = Path("./VECTOR/Area_Estudio/Area_Estudio.shp")
+VECTOR_PATH = Path("./VECTOR/base_datos.gpkg")
 OUTPUT_PATH = Path("./RASTER/derivados/")
 OUTPUT_EXCEL = Path("./TABLES/")
 if not OUTPUT_EXCEL.exists():
@@ -26,7 +26,8 @@ OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 # VECTORES
 # ---------------------------------------------------
 
-regiones = gpd.read_file(VECTOR_PATH)
+regiones = gpd.read_file(VECTOR_PATH, layer='regiones')
+regiones_adm = gpd.read_file(VECTOR_PATH, layer='regiones_administrativas')
 
 # ---------------------------------------------------
 # BIOS
@@ -98,6 +99,9 @@ for bio_idx, cfg in BIOS.items():
     # ===================================================
     if regiones.crs != src_h.crs:
         regiones = regiones.to_crs(src_h.crs)
+    if regiones_adm.crs != src_h.crs:
+        regiones_adm = regiones_adm.to_crs(src_h.crs)
+
     stats = zonal_stats(
         regiones,
         delta_path,
@@ -109,6 +113,17 @@ for bio_idx, cfg in BIOS.items():
     regiones[f"mean_bio_{bio_idx}"] = [s["mean"] for s in stats]
     regiones[f"std_bio_{bio_idx}"] = [s["std"] for s in stats]
 
+    stats_adm = zonal_stats(
+        regiones_adm,
+        delta_path,
+        stats=["mean", "std"],
+        nodata=NODATA_VAL_OUT,
+        all_touched=True,
+    )
+
+    regiones_adm[f"mean_bio_{bio_idx}"] = [s["mean"] for s in stats_adm]
+    regiones_adm[f"std_bio_{bio_idx}"] = [s["std"] for s in stats_adm]
+
     if (regiones[f"std_bio_{bio_idx}"] == 0).any():
         regiones.loc[regiones[f"std_bio_{bio_idx}"] == 0, [f"std_bio_{bio_idx}"]] = (
             -9999
@@ -117,6 +132,14 @@ for bio_idx, cfg in BIOS.items():
         print(f"STD = 0 detectado en BIO{bio_idx}")
 
     print(f"Estadísticas regionales DELTA_bio_{bio_idx} calculadas")
+
+    if (regiones_adm[f"std_bio_{bio_idx}"] == 0).any():
+        regiones_adm.loc[
+            regiones_adm[f"std_bio_{bio_idx}"] == 0,
+            [f"std_bio_{bio_idx}"],
+        ] = -9999
+
+    print(f"Estadísticas administrativas DELTA_bio_{bio_idx} calculadas")
 
     # ===================================================
     # A.3 RASTERIZACIÓN DE MEDIA Y STD
@@ -267,14 +290,14 @@ with rasterio.open(IC_PATH) as src_ref:
 def extraer_media(raster_path, nombre_columna):
 
     stats = zonal_stats(
-        regiones,
+        regiones_adm,
         raster_path,
         stats=["mean"],
         nodata=NODATA_VAL_OUT,
         all_touched=True,
     )
 
-    regiones[nombre_columna] = [s["mean"] for s in stats]
+    regiones_adm[nombre_columna] = [s["mean"] for s in stats]
 
 
 # ---------------------------------------------------
@@ -295,37 +318,26 @@ extraer_media(ISH_PATH, "I_estress_hidrico")
 extraer_media(IC_PATH, "Indice_consolidado")
 
 # ---------------------------------------------------
-# CREAR NOMBRE UNIFICADO
-# ---------------------------------------------------
-
-def obtener_nombre(row):
-    for campo in ["nombre", "dpto_desc", "REGION"]:
-        if campo in regiones.columns and pd.notnull(row.get(campo)):
-            return str(row[campo]).title()
-    return "Sin Nombre"
-
-
-regiones["NOMBRE_ZONA"] = regiones.apply(obtener_nombre, axis=1)
-
-# ---------------------------------------------------
 # RANKING
 # ---------------------------------------------------
 
 ranking_df = (
-    regiones.sort_values(by="Indice_consolidado", ascending=False)
+    regiones_adm.sort_values(by="Indice_consolidado", ascending=False)
     .dropna(subset=["Indice_consolidado"])
     .reset_index(drop=True)
 )
 
 ranking_df["RANK"] = ranking_df.index + 1
+ranking_df.to_file(VECTOR_PATH, layer='regiones_adm_resultado')
 
 # ---------------------------------------------------
 # EXPORTAR (INCLUYE MEAN Y STD ORIGINALES)
 # ---------------------------------------------------
-
 cols_excel = [
     "RANK",
-    "NOMBRE_ZONA",
+    "nombre",
+    "pais",
+    "REGION",
     "I_estress_termico",
     "I_estress_hidrico",
     "Indice_consolidado",
@@ -342,6 +354,7 @@ cols_excel = [
     "std_bio_14",
     "std_bio_15",
 ]
+
 
 with pd.ExcelWriter(OUTPUT_EXCEL, engine="xlsxwriter") as writer:
     ranking_df.to_excel(
