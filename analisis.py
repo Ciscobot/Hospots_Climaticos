@@ -18,7 +18,7 @@ OUTPUT_EXCEL = Path("./TABLES/")
 if not OUTPUT_EXCEL.exists():
     OUTPUT_EXCEL.mkdir(exist_ok=True)
 OUTPUT_EXCEL = OUTPUT_EXCEL.joinpath("Reporte_Hotspots_Area_Estudio.xlsx")
-NODATA_VAL_OUT = -9999
+NODATA_VAL_OUT = 0
 
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
@@ -104,14 +104,14 @@ for bio_idx, cfg in BIOS.items():
 
     stats = zonal_stats(
         regiones,
-        delta_path,
+        cfg["hist_path"],
         stats=["mean", "std"],
-        nodata=NODATA_VAL_OUT,
+        # nodata=NODATA_VAL_OUT,
         all_touched=True,
     )
 
-    regiones[f"mean_bio_{bio_idx}"] = [s["mean"] for s in stats]
-    regiones[f"std_bio_{bio_idx}"] = [s["std"] for s in stats]
+    regiones[f"mean_hist_bio_{bio_idx}"] = [s["mean"] for s in stats]
+    regiones[f"std_hist_bio_{bio_idx}"] = [s["std"] for s in stats]
 
     stats_adm = zonal_stats(
         regiones_adm,
@@ -124,8 +124,8 @@ for bio_idx, cfg in BIOS.items():
     regiones_adm[f"mean_bio_{bio_idx}"] = [s["mean"] for s in stats_adm]
     regiones_adm[f"std_bio_{bio_idx}"] = [s["std"] for s in stats_adm]
 
-    if (regiones[f"std_bio_{bio_idx}"] == 0).any():
-        regiones.loc[regiones[f"std_bio_{bio_idx}"] == 0, [f"std_bio_{bio_idx}"]] = (
+    if (regiones[f"std_hist_bio_{bio_idx}"] == 0).any():
+        regiones.loc[regiones[f"std_hist_bio_{bio_idx}"] == 0, [f"std_hist_bio_{bio_idx}"]] = (
             -9999
         )
         # raise ValueError(f"STD = 0 detectado en BIO{bio_idx}")
@@ -156,7 +156,7 @@ for bio_idx, cfg in BIOS.items():
             shapes = (
                 (geom, val)
                 for geom, val in zip(
-                    regiones.geometry, regiones[f"{stat}_bio_{bio_idx}"]
+                    regiones.geometry, regiones[f"{stat}_hist_bio_{bio_idx}"]
                 )
             )
 
